@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kitchen shift planner</title>
+<style>
+:root {
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  --bg: #f5f4f0;
+  --surface: #ffffff;
+  --text: #1c1c1a;
+  --muted: #66655f;
+  --border: #d9d6cc;
+  --accent: #2f6b4f;
+  --accent-text: #ffffff;
+  --issue-bg: #fbe5e2;
+  --issue-text: #9b2c1f;
+  --issue-border: #d9796c;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161715;
+    --surface: #20221f;
+    --text: #ecebe6;
+    --muted: #a3a197;
+    --border: #3a3c37;
+    --accent: #6fb68f;
+    --accent-text: #10170f;
+    --issue-bg: #3d2420;
+    --issue-text: #f2a79c;
+    --issue-border: #a4574b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #161715;
+  --surface: #20221f;
+  --text: #ecebe6;
+  --muted: #a3a197;
+  --border: #3a3c37;
+  --accent: #6fb68f;
+  --accent-text: #10170f;
+  --issue-bg: #3d2420;
+  --issue-text: #f2a79c;
+  --issue-border: #a4574b;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.wrap { max-width: 1100px; margin: 0 auto; padding: 20px 16px 48px; }
+h1 { font-size: 1.5rem; margin: 0 0 4px; }
+h2 { font-size: 1.05rem; margin: 0 0 10px; }
+.sub { color: var(--muted); margin: 0 0 18px; }
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px 16px; margin-bottom: 12px; }
+label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 4px; }
+label.inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 12px 0 0;
+  color: var(--text);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+input, textarea, select, button { font: inherit; color: var(--text); }
+input, textarea, select {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+input.small { width: 72px; }
+input[type="checkbox"] { width: auto; }
+textarea { min-height: 180px; resize: vertical; }
+button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.hint { font-size: 0.85rem; color: var(--muted); margin: 10px 0 0; }
+.ok { color: var(--accent); }
+.warn { color: var(--issue-text); font-weight: 600; }
+.table-wrap { overflow-x: auto; margin-top: 8px; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--border); padding: 8px; vertical-align: top; text-align: left; }
+th { font-size: 0.85rem; color: var(--muted); font-weight: 600; background: var(--bg); }
+td.off { color: var(--muted); }
+td.cell { min-width: 150px; }
+td.cell select { margin-bottom: 6px; padding: 6px 8px; font-size: 0.9rem; }
+td.cell.issue { background: var(--issue-bg); }
+select.bad { border-color: var(--issue-border) !important; }
+.issues { list-style: none; padding: 0; margin: 0; }
+.issues li {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--issue-bg);
+  color: var(--issue-text);
+  margin-bottom: 6px;
+}
+textarea#textOut { min-height: 140px; }
+
+@media print {
+  body { background: #fff; color: #000; }
+  .no-print { display: none !important; }
+  .panel { border: none; padding: 0; }
+  td.cell.issue { background: #fff; }
+}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <h1>Kitchen shift planner</h1>
+    <p class="sub">Set the shifts for each day, enter each student’s target hours, and the schedule is built to match.</p>
+  </header>
+
+  <section class="panel no-print">
+    <h2>Shift setup</h2>
+    <div class="table-wrap"><table id="setup"></table></div>
+    <p class="hint">Turn shifts on or off for each day and set how many people each one needs.</p>
+  </section>
+
+  <section class="panel no-print">
+    <h2>Settings</h2>
+    <div class="settings">
+      <div>
+        <label for="length">Shift length (hours)</label>
+        <input id="length" type="number" min="0.5" max="12" step="0.5" value="1.5">
+      </div>
+      <div>
+        <label for="maxPerDay">Max shifts per student per day</label>
+        <input id="maxPerDay" type="number" min="1" max="3" value="1">
+      </div>
+      <div>
+        <label for="lunchStart">Lunch start</label>
+        <input id="lunchStart" type="text" value="11:30 AM">
+      </div>
+      <div>
+        <label for="dinnerStart">Dinner start</label>
+        <input id="dinnerStart" type="text" value="5:00 PM">
+      </div>
+    </div>
+  </section>
+
+  <section class="panel no-print">
+    <h2>Students</h2>
+    <div class="settings">
+      <div>
+        <label for="count">Number of students</label>
+        <input id="count" type="number" min="1" max="40" value="12">
+      </div>
+    </div>
+    <div class="table-wrap"><table id="students"></table></div>
+    <p class="hint" id="totals"></p>
+    <div class="actions">
+      <button class="primary" id="generate">Generate schedule</button>
+    </div>
+    <p class="hint">Changing the setup, shift length, or a target rebuilds the schedule, which replaces manual changes. Generate again for a different arrangement with the same fit.</p>
+  </section>
+
+  <section class="panel" id="issues"></section>
+
+  <section class="panel">
+    <h2>Schedule</h2>
+    <p class="hint">Pick a name in any spot to change it. Open spots and conflicts are highlighted.</p>
+    <div class="table-wrap"><table id="grid"></table></div>
+    <div class="actions no-print">
+      <button id="copyText">Copy as text</button>
+      <button id="printBtn">Print</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Hours</h2>
+    <p class="hint">Difference is scheduled hours minus target. Anything other than zero is highlighted.</p>
+    <div class="table-wrap"><table id="summary"></table></div>
+  </section>
+
+  <section class="panel no-print" id="textPanel" hidden>
+    <h2>Text version</h2>
+    <textarea id="textOut" readonly></textarea>
+  </section>
+</main>
+
+<script>
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const TYPES = [
+  { key: "lunch", label: "Lunch" },
+  { key: "dinner", label: "Dinner" }
+];
+const DEFAULT_ON = {
+  lunch: [1, 1, 0, 0, 0, 0, 0],
+  dinner: [1, 1, 1, 1, 1, 1, 0]
+};
+
+const state = {
+  students: Array.from({ length: 12 }, (_, i) => ({ name: "Student " + (i + 1), target: 3 })),
+  shiftLength: 1.5,
+  maxPerDay: 1,
+  starts: { lunch: "11:30 AM", dinner: "5:00 PM" },
+  setup: {
+    lunch: DAYS.map((_, d) => ({ on: DEFAULT_ON.lunch[d] === 1, people: 3 })),
+    dinner: DAYS.map((_, d) => ({ on: DEFAULT_ON.dinner[d] === 1, people: 3 }))
+  },
+  seed: 1
+};
+
+// One entry per person needed: {d, t, k}. assign[i] is a student index, or -1 for open.
+let spots = [];
+let assign = [];
+
+function $(id) { return document.getElementById(id); }
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[c]);
+}
+
+function clamp(v, lo, hi, fallback) {
+  if (v === "" || v === null) return fallback;
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : fallback;
+}
+
+function fmt(x) { return String(Math.round(x * 100) / 100); }
+
+// Small seeded random generator so each Generate click gives a repeatable result.
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function buildSpots() {
+  spots = [];
+  DAYS.forEach((_, d) => TYPES.forEach(t => {
+    const cfg = state.setup[t.key][d];
+    if (!cfg.on) return;
+    for (let k = 0; k < cfg.people; k++) spots.push({ d, t: t.key, k });
+  }));
+}
+
+// Fill every spot first, then match each student's target hours as closely as possible.
+// A student can't be on two shifts in one day, can't work the day after a shift, and can't go over the per-day limit.
+// Students who still need the most hours are tried first. Leaving a spot open is tried last.
+function solve(seed) {
+  const rnd = mulberry32(seed);
+  const n = state.students.length;
+  const L = state.shiftLength;
+  const LIMIT = 400000;
+  const jitter = state.students.map(() => rnd() * 0.01);
+  const cur = spots.map(() => -1);
+  const hours = new Array(n).fill(0);
+  const occ = Array.from({ length: n }, () => new Array(DAYS.length).fill(0));
+  let best = null;
+  let bestPen = Infinity;
+  let nodes = 0;
+  let done = false;
+
+  function dfs(i, opens) {
+    if (done || nodes > LIMIT) return;
+    nodes++;
+    if (opens * 1000 >= bestPen) return;
+
+    if (i === spots.length) {
+      let dev = 0;
+      for (let s = 0; s < n; s++) dev += Math.abs(hours[s] - state.students[s].target);
+      const pen = opens * 1000 + dev;
+      if (pen < bestPen) {
+        bestPen = pen;
+        best = cur.slice();
+        if (opens === 0 && dev < 0.01) done = true;
+      }
+      return;
+    }
+
+    const d = spots[i].d;
+    const cands = [];
+    for (let s = 0; s < n; s++) {
+      if (occ[s][d] >= state.maxPerDay) continue;
+      if (d > 0 && occ[s][d - 1] > 0) continue;
+      cands.push(s);
+    }
+    const need = s => state.students[s].target - hours[s] + jitter[s];
+    cands.sort((a, b) => (need(b) - need(a)) || (a - b));
+
+    for (const s of cands) {
+      cur[i] = s;
+      hours[s] += L;
+      occ[s][d]++;
+      dfs(i + 1, opens);
+      occ[s][d]--;
+      hours[s] -= L;
+      cur[i] = -1;
+      if (done || nodes > LIMIT) return;
+    }
+
+    dfs(i + 1, opens + 1);
+  }
+
+  dfs(0, 0);
+  return best || cur;
+}
+
+function generate() {
+  buildSpots();
+  assign = solve(state.seed);
+  state.seed += 1;
+}
+
+// Human-readable problems plus the spot indices to highlight.
+function check() {
+  const msgs = [];
+  const flagged = new Set();
+  const n = state.students.length;
+
+  DAYS.forEach((dn, d) => TYPES.forEach(t => {
+    const idx = [];
+    spots.forEach((sp, i) => { if (sp.d === d && sp.t === t.key) idx.push(i); });
+    const open = idx.filter(i => assign[i] < 0);
+    open.forEach(i => flagged.add(i));
+    if (open.length) {
+      msgs.push(dn + " " + t.label.toLowerCase() + " needs " + open.length + " more " + (open.length === 1 ? "person." : "people."));
+    }
+  }));
+
+  for (let s = 0; s < n; s++) {
+    const name = state.students[s].name;
+    const byDay = DAYS.map(() => []);
+    spots.forEach((sp, i) => { if (assign[i] === s) byDay[sp.d].push(i); });
+
+    for (let d = 0; d < DAYS.length; d++) {
+      if (byDay[d].length > state.maxPerDay) {
+        msgs.push(name + " is on " + byDay[d].length + " shifts on " + DAYS[d] + ".");
+        byDay[d].forEach(i => flagged.add(i));
+      }
+      if (d < DAYS.length - 1 && byDay[d].length && byDay[d + 1].length) {
+        msgs.push(name + " works " + DAYS[d] + " and " + DAYS[d + 1] + " in a row.");
+        byDay[d].forEach(i => flagged.add(i));
+        byDay[d + 1].forEach(i => flagged.add(i));
+      }
+    }
+  }
+
+  return { msgs, flagged };
+}
+
+function renderSetup() {
+  const head = "<thead><tr><th>Day</th>" + TYPES.map(t => "<th>" + t.label + "</th>").join("") + "</tr></thead>";
+  const rows = DAYS.map((dn, d) => "<tr><th>" + dn + "</th>" + TYPES.map(t => {
+    const cfg = state.setup[t.key][d];
+    return "<td>" +
+      "<label class=\"inline\"><input type=\"checkbox\" data-setup=\"" + t.key + "\" data-day=\"" + d + "\" data-field=\"on\"" + (cfg.on ? " checked" : "") + "> On</label>" +
+      "<label class=\"inline\">People <input class=\"small\" type=\"number\" min=\"0\" max=\"20\" data-setup=\"" + t.key + "\" data-day=\"" + d + "\" data-field=\"people\" value=\"" + cfg.people + "\"></label>" +
+      "</td>";
+  }).join("") + "</tr>").join("");
+  $("setup").innerHTML = head + "<tbody>" + rows + "</tbody>";
+}
+
+function renderStudents() {
+  const rows = state.students.map((st, i) =>
+    "<tr>" +
+    "<td>" + (i + 1) + "</td>" +
+    "<td><input type=\"text\" data-stu=\"" + i + "\" data-field=\"name\" value=\"" + esc(st.name) + "\" aria-label=\"Name for student " + (i + 1) + "\"></td>" +
+    "<td><input type=\"number\" min=\"0\" max=\"60\" step=\"0.5\" data-stu=\"" + i + "\" data-field=\"target\" value=\"" + st.target + "\" aria-label=\"Target hours for student " + (i + 1) + "\"></td>" +
+    "</tr>"
+  ).join("");
+  $("students").innerHTML = "<thead><tr><th>#</th><th>Name</th><th>Target hours</th></tr></thead><tbody>" + rows + "</tbody>";
+}
+
+function renderIssues(msgs) {
+  $("issues").innerHTML = msgs.length
+    ? "<h2>Needs attention</h2><ul class=\"issues\">" + msgs.map(m => "<li>" + esc(m) + "</li>").join("") + "</ul>"
+    : "<h2 class=\"ok\">All rules met</h2><p class=\"hint\">Every shift is full, and nobody works back-to-back days.</p>";
+}
+
+function renderGrid(flagged) {
+  const index = new Map(spots.map((sp, i) => [sp.d + "-" + sp.t + "-" + sp.k, i]));
+  const head = "<thead><tr><th>Day</th>" + TYPES.map(t =>
+    "<th>" + t.label + "<div class=\"hint\">" + esc(state.starts[t.key]) + "</div></th>"
+  ).join("") + "</tr></thead>";
+
+  const rows = DAYS.map((dn, d) => "<tr><th>" + dn + "</th>" + TYPES.map(t => {
+    const cfg = state.setup[t.key][d];
+    if (!cfg.on || cfg.people < 1) return "<td class=\"off\">Off</td>";
+
+    let bad = false;
+    let selects = "";
+    for (let k = 0; k < cfg.people; k++) {
+      const i = index.get(d + "-" + t.key + "-" + k);
+      const isBad = flagged.has(i);
+      bad = bad || isBad;
+      const options = state.students.map((st, s) =>
+        "<option value=\"" + s + "\"" + (assign[i] === s ? " selected" : "") + ">" + esc(st.name) + "</option>"
+      ).join("");
+      selects += "<select class=\"" + (isBad ? "bad" : "") + "\" data-i=\"" + i + "\" aria-label=\"" + dn + " " + t.label + " person " + (k + 1) + "\">" +
+        "<option value=\"-1\">— open —</option>" + options + "</select>";
+    }
+    return "<td class=\"cell" + (bad ? " issue" : "") + "\">" + selects + "</td>";
+  }).join("") + "</tr>").join("");
+
+  $("grid").innerHTML = head + "<tbody>" + rows + "</tbody>";
+}
+
+function renderSummary() {
+  const rows = state.students.map((st, s) => {
+    const days = [];
+    spots.forEach((sp, i) => { if (assign[i] === s) days.push(sp.d); });
+    days.sort((a, b) => a - b);
+    const hrs = days.length * state.shiftLength;
+    const diff = hrs - st.target;
+    const dayNames = [...new Set(days)].map(d => DAYS[d]).join(", ");
+    return "<tr>" +
+      "<td>" + esc(st.name) + "</td>" +
+      "<td>" + fmt(st.target) + " h</td>" +
+      "<td>" + fmt(hrs) + " h</td>" +
+      "<td class=\"" + (Math.abs(diff) < 0.01 ? "" : "warn") + "\">" + (diff > 0 ? "+" : "") + fmt(diff) + " h</td>" +
+      "<td>" + days.length + "</td>" +
+      "<td>" + (dayNames || "—") + "</td>" +
+      "</tr>";
+  }).join("");
+
+  $("summary").innerHTML =
+    "<thead><tr><th>Name</th><th>Target</th><th>Scheduled</th><th>Difference</th><th>Shifts</th><th>Days</th></tr></thead>" +
+    "<tbody>" + rows + "</tbody>";
+}
+
+function renderTotals() {
+  const need = spots.length * state.shiftLength;
+  const targets = state.students.reduce((sum, st) => sum + st.target, 0);
+  const note = Math.abs(targets - need) < 0.01 ? "" : " They don’t match, so some students will be off target.";
+  $("totals").textContent = "Targets add up to " + fmt(targets) + " hours. The shifts need " + fmt(need) + " hours." + note;
+}
+
+function renderAll() {
+  const { msgs, flagged } = check();
+  renderIssues(msgs);
+  renderGrid(flagged);
+  renderSummary();
+  renderTotals();
+}
+
+function toText() {
+  const lines = [];
+  DAYS.forEach((dn, d) => TYPES.forEach(t => {
+    if (!state.setup[t.key][d].on) return;
+    const names = spots
+      .map((sp, i) => ({ sp, i }))
+      .filter(x => x.sp.d === d && x.sp.t === t.key)
+      .map(x => assign[x.i] >= 0 ? state.students[assign[x.i]].name : "OPEN");
+    lines.push(dn + " " + t.label + " " + state.starts[t.key] + ": " + names.join(", "));
+  }));
+  return lines.join("\n");
+}
+
+// Wiring
+$("setup").addEventListener("change", e => {
+  const t = e.target.dataset.setup;
+  if (!t) return;
+  const cfg = state.setup[t][+e.target.dataset.day];
+  const f = e.target.dataset.field;
+  if (f === "on") cfg.on = e.target.checked;
+  if (f === "people") {
+    cfg.people = Math.round(clamp(e.target.value, 0, 20, 0));
+    e.target.value = cfg.people;
+  }
+  generate();
+  renderAll();
+});
+
+$("students").addEventListener("change", e => {
+  const stu = e.target.dataset.stu;
+  if (stu === undefined) return;
+  const st = state.students[+stu];
+  if (e.target.dataset.field === "name") {
+    st.name = e.target.value.trim() || ("Student " + (+stu + 1));
+    renderAll();
+  }
+  if (e.target.dataset.field === "target") {
+    st.target = clamp(e.target.value, 0, 60, 0);
+    e.target.value = st.target;
+    generate();
+    renderAll();
+  }
+});
+
+$("count").addEventListener("change", e => {
+  const n = Math.round(clamp(e.target.value, 1, 40, 12));
+  e.target.value = n;
+  while (state.students.length < n) {
+    state.students.push({ name: "Student " + (state.students.length + 1), target: 3 });
+  }
+  state.students.length = n;
+  renderStudents();
+  generate();
+  renderAll();
+});
+
+$("length").addEventListener("change", e => {
+  state.shiftLength = clamp(e.target.value, 0.5, 12, 1.5);
+  e.target.value = state.shiftLength;
+  generate();
+  renderAll();
+});
+
+$("maxPerDay").addEventListener("change", e => {
+  state.maxPerDay = Math.round(clamp(e.target.value, 1, 3, 1));
+  e.target.value = state.maxPerDay;
+  generate();
+  renderAll();
+});
+
+$("lunchStart").addEventListener("change", e => {
+  state.starts.lunch = e.target.value.trim() || "11:30 AM";
+  renderAll();
+});
+
+$("dinnerStart").addEventListener("change", e => {
+  state.starts.dinner = e.target.value.trim() || "5:00 PM";
+  renderAll();
+});
+
+$("grid").addEventListener("change", e => {
+  if (e.target.tagName !== "SELECT") return;
+  assign[+e.target.dataset.i] = +e.target.value;
+  renderAll();
+});
+
+$("generate").addEventListener("click", () => {
+  generate();
+  renderAll();
+});
+
+$("copyText").addEventListener("click", () => {
+  const box = $("textOut");
+  box.value = toText();
+  $("textPanel").hidden = false;
+  box.focus();
+  box.select();
+  if (navigator.clipboard) navigator.clipboard.writeText(box.value).catch(() => {});
+});
+
+$("printBtn").addEventListener("click", () => window.print());
+
+// Initial state
+renderSetup();
+renderStudents();
+generate();
+renderAll();
+</script>
+</body>
+</html>
